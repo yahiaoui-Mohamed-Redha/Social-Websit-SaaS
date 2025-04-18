@@ -122,6 +122,7 @@ $currentTranslations = $translations[$language] ?? $translations['en'];
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css" />
     <title>SocialFolio - Dashboard</title>
     <link rel="stylesheet" href="../src/output.css">
     <style>
@@ -196,7 +197,6 @@ $currentTranslations = $translations[$language] ?? $translations['en'];
             right: 0;
             left: auto;
             border-right: none;
-            border-left: 1px solid #E5E7EB;
         }
 
         [dir="rtl"] .content {
@@ -205,7 +205,6 @@ $currentTranslations = $translations[$language] ?? $translations['en'];
         }
 
         [dir="rtl"] .header {
-            padding-right: 17rem;
             padding-left: 0;
         }
 
@@ -238,7 +237,7 @@ $currentTranslations = $translations[$language] ?? $translations['en'];
         }
 
         .sidebar-scroll::-webkit-scrollbar {
-            width: 6px;
+            width: 8px;
         }
 
         .sidebar-scroll::-webkit-scrollbar-track {
@@ -277,9 +276,9 @@ $currentTranslations = $translations[$language] ?? $translations['en'];
     </header>
 
     <!-- Sidebar - Position changes based on RTL -->
-    <aside class="sidebar z-[97] fixed flex flex-col justify-start top-14 <?php echo $isRTL ? 'right-0' : 'left-0'; ?> min-w-[16.3rem] h-screen pt-2 overflow-hidden bg-white shadow-lg transition-transform <?php echo $isRTL ? '-translate-x-full sm:translate-x-0' : '-translate-x-full sm:translate-x-0'; ?>" aria-label="Sidebar">
-        <div class="mt-6 pl-5 pb-4 overflow-y-auto sidebar-scroll">
-            <nav class="w-full pr-5 nav fixed-on-h632 -mx-3 bottom-6 top-[90px] flex flex-col flex-1 justify-between space-y-4">
+    <aside class="sidebar z-[97] fixed flex flex-col justify-start top-14 min-w-[16.3rem] h-screen pt-2 overflow-hidden bg-white transition-transform <?php echo $isRTL ? '-translate-x-full sm:translate-x-0' : '-translate-x-full sm:translate-x-0'; ?>" aria-label="Sidebar">
+        <div class="mt-6 pl-5 pb-4 mb-16 overflow-y-auto sidebar-scroll">
+            <nav class="w-full pr-5 nav fixed-on-h632 -mx-3 bottom-20 top-3.5 flex flex-col flex-1 justify-between space-y-4">
 
                 <div class="space-y-4">
                     <div class="space-y-2.5">
@@ -305,7 +304,7 @@ $currentTranslations = $translations[$language] ?? $translations['en'];
                             <span class="mx-2 text-sm font-medium"><?php echo $currentTranslations['profileLink']; ?></span>
                         </a>
 
-                        <a class="flex items-center px-3 py-2 mt-2 text-gray-600 transition-colors duration-300 transform rounded-lg hover:bg-indigo-50 hover:text-indigo-600" href="links/links.php">
+                        <a class="flex items-center px-3 py-2 mt-2 text-gray-600 transition-colors duration-300 transform rounded-lg hover:bg-indigo-50 hover:text-indigo-600" href="social-links/links.php?user_id=<?php echo $user_id; ?>">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" width="24" height="24" stroke-width="1.5">
                                 <path d="M9 15l6 -6"></path>
                                 <path d="M11 6l.463 -.536a5 5 0 0 1 7.071 7.072l-.534 .464"></path>
