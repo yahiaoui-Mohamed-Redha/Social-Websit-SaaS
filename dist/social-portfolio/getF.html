@@ -1,0 +1,181 @@
+<div class="bg-white shadow-xl rounded-2xl p-8 w-full max-w-xl">
+    <h2 class="text-2xl font-bold mb-4 text-center text-gray-800">تحقق من عدد المتابعين</h2>
+    <input type="text" id="urlInput" placeholder="أدخل رابط TikTok أو Instagram أو YouTube"
+           class="w-full p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+    <button onclick="getFollowers()"
+            class="w-full mt-4 bg-blue-600 text-white py-3 rounded-xl hover:bg-blue-700 transition duration-200">
+      جلب عدد المتابعين
+    </button>
+    <div id="result" class="mt-6 text-center text-lg text-green-600 font-medium">🔍 في انتظار الرابط...</div>
+</div>
+
+<script>
+    // Replace with your actual YouTube API key
+    const YOUTUBE_API_KEY = "AIzaSyAoYCQq3zVkJydrL0lNt1Jfe6imJXLvd04"; // Replace with your key
+    
+    async function getFollowers() {
+      const url = document.getElementById("urlInput").value.trim();
+      const resultDiv = document.getElementById("result");
+      resultDiv.innerText = "⏳ جاري التحميل...";
+
+      if (!url) {
+        resultDiv.innerText = "❌ الرجاء إدخال رابط.";
+        return;
+      }
+
+      try {
+        // YouTube handling
+        if (url.includes("youtube.com") || url.includes("youtu.be")) {
+          if (!YOUTUBE_API_KEY || YOUTUBE_API_KEY.includes("AIzaSyAoYCQq3zVkJydrL0lNt1Jfe6imJXLvd04")) {
+            resultDiv.innerText = "❌ يلزم إضافة مفتاح YouTube API صالح.";
+            return;
+          }
+          
+          const channelId = await extractYouTubeChannelId(url);
+          if (!channelId) {
+            resultDiv.innerText = "❌ لم يتم التعرف على القناة. استخدم رابط القناة مباشرة.";
+            return;
+          }
+
+          const apiUrl = `https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${channelId}&key=${YOUTUBE_API_KEY}`;
+          const response = await fetch(apiUrl);
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error?.message || "YouTube API error");
+          }
+          
+          const data = await response.json();
+
+          if (data.items?.length > 0) {
+            const count = data.items[0].statistics.subscriberCount;
+            resultDiv.innerText = `📺 متابعين YouTube: ${Number(count).toLocaleString()}`;
+          } else {
+            resultDiv.innerText = "❌ لم يتم العثور على القناة. تأكد من الرابط.";
+          }
+          return;
+        }
+
+        // Instagram handling
+        if (url.includes("instagram.com")) {
+          // Try with different proxies
+          const proxies = [
+            "https://api.allorigins.win/get?url=",
+            "https://cors-anywhere.herokuapp.com/",
+            "https://thingproxy.freeboard.io/fetch/"
+          ];
+          
+          let lastError = null;
+          
+          for (const proxy of proxies) {
+            try {
+              const response = await fetch(proxy + encodeURIComponent(url), {
+                headers: {
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                }
+              });
+              
+              if (!response.ok) continue;
+              
+              const data = await response.json();
+              const html = data.contents || data;
+              
+              // New Instagram patterns
+              const patterns = [
+                /"edge_followed_by":\{"count":(\d+)\}/,
+                /"followers":\s*(\d+)/,
+                /"userInteractionCount":"([\d,]+)"/,
+                /([\d,]+)\s+Followers/
+              ];
+              
+              for (const pattern of patterns) {
+                const match = html.match(pattern);
+                if (match) {
+                  const count = match[1].replace(/,/g, '');
+                  resultDiv.innerText = `📸 متابعين Instagram: ${Number(count).toLocaleString()}`;
+                  return;
+                }
+              }
+            } catch (e) {
+              lastError = e;
+              continue;
+            }
+          }
+          
+          throw new Error(lastError || "Instagram: لم يتم العثور على عدد المتابعين");
+        }
+
+        // TikTok handling
+        if (url.includes("tiktok.com")) {
+          const proxy = "https://api.allorigins.win/get?url=";
+          const response = await fetch(proxy + encodeURIComponent(url));
+          
+          if (!response.ok) {
+            throw new Error("TikTok: فشل في جلب البيانات");
+          }
+          
+          const data = await response.json();
+          const patterns = [
+            /"followerCount":(\d+)/,
+            /"followers":([0-9]+)/,
+            /"followers":\s*"([\d,]+)"/
+          ];
+          
+          for (const pattern of patterns) {
+            const match = data.contents.match(pattern);
+            if (match) {
+              const count = match[1].replace(/,/g, '');
+              resultDiv.innerText = `🎵 متابعين TikTok: ${Number(count).toLocaleString()}`;
+              return;
+            }
+          }
+          
+          throw new Error("TikTok: لم يتم العثور على عدد المتابعين");
+        }
+
+        resultDiv.innerText = "❌ الرابط غير مدعوم. استخدم روابط YouTube أو Instagram أو TikTok فقط.";
+      } catch (error) {
+        console.error("Error:", error);
+        resultDiv.innerText = `❌ حدث خطأ: ${error.message || "جرب رابطًا آخر أو حاول لاحقًا"}`;
+      }
+    }
+
+    async function extractYouTubeChannelId(url) {
+      try {
+        // Handle channel URLs
+        if (url.includes("/channel/")) {
+          return url.split("/channel/")[1].split(/[/?#&]/)[0];
+        }
+        
+        // Handle @handle URLs (new style)
+        if (url.includes("youtube.com/@")) {
+          const handle = url.split("youtube.com/@")[1].split(/[/?#&]/)[0];
+          // Need to convert handle to channel ID
+          try {
+            const response = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${handle}&type=channel&key=${YOUTUBE_API_KEY}`);
+            const data = await response.json();
+            return data.items?.[0]?.id?.channelId || null;
+          } catch {
+            return null;
+          }
+        }
+        
+        // Handle video URLs
+        if (url.includes("/watch")) {
+          const videoId = url.split("v=")[1].split(/[&?#]/)[0];
+          try {
+            const response = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${YOUTUBE_API_KEY}`);
+            const data = await response.json();
+            return data.items?.[0]?.snippet?.channelId || null;
+          } catch {
+            return null;
+          }
+        }
+        
+        return null;
+      } catch (e) {
+        console.error("Channel ID extraction error:", e);
+        return null;
+      }
+    }
+</script>

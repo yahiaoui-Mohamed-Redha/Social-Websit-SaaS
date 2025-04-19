@@ -317,7 +317,7 @@ $currentTranslations = $translations[$language] ?? $translations['en'];
                     <div class="space-y-2.5">
                         <label class="px-3 text-xs font-semibold text-gray-500 uppercase"><?php echo $currentTranslations['pageLabel']; ?></label>
 
-                        <a class="flex items-center px-3 py-2 mt-2 text-gray-600 transition-colors duration-300 transform rounded-lg hover:bg-indigo-50 hover:text-indigo-600" href="social-page/social-page.php">
+                        <a class="flex items-center px-3 py-2 mt-2 text-gray-600 transition-colors duration-300 transform rounded-lg hover:bg-indigo-50 hover:text-indigo-600" href="social-portfolio/getF.html">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" width="24" height="24" stroke-width="1.5">
                                 <path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0"></path>
                                 <path d="M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0"></path>
