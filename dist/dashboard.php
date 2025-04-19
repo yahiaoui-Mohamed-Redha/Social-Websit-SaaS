@@ -123,6 +123,7 @@ $currentTranslations = $translations[$language] ?? $translations['en'];
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <title>SocialFolio - Dashboard</title>
     <link rel="stylesheet" href="../src/output.css">
     <style>
@@ -248,6 +249,11 @@ $currentTranslations = $translations[$language] ?? $translations['en'];
             background-color: #E5E7EB;
             border-radius: 6px;
         }
+
+        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap');
+        body {
+            font-family: 'Tajawal', sans-serif;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -295,7 +301,7 @@ $currentTranslations = $translations[$language] ?? $translations['en'];
                     <div class="space-y-2.5">
                         <label class="px-3 text-xs font-semibold text-gray-500 uppercase"><?php echo $currentTranslations['profileLabel']; ?></label>
 
-                        <a class="flex items-center px-3 py-2 mt-2 text-gray-600 transition-colors duration-300 transform rounded-lg hover:bg-indigo-50 hover:text-indigo-600" href="profile/profile.php">
+                        <a class="flex items-center px-3 py-2 mt-2 text-gray-600 transition-colors duration-300 transform rounded-lg hover:bg-indigo-50 hover:text-indigo-600" href="profile/profile.php?user_id=<?php echo $user_id; ?>">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" width="24" height="24" stroke-width="1.5">
                                 <path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"></path>
                                 <path d="M12 10m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"></path>
@@ -509,7 +515,7 @@ $currentTranslations = $translations[$language] ?? $translations['en'];
             if (currentPage) {
                 loadPage(currentPage);
             } else {
-                loadPage('statistiques/statistiques.php?admin_id=<?php echo $user_id; ?>'); // Default page
+                loadPage('statistiques/statistiques.php?user_id=<?php echo $user_id; ?>'); // Default page
             }
 
             // Handle clicks on links with class="load-page-link"
@@ -535,60 +541,6 @@ $currentTranslations = $translations[$language] ?? $translations['en'];
                 alert("Language changed to " + language);
             });
 
-            // Handle form submission using AJAX
-            $('#createAccountForm').on('submit', function(e) {
-                e.preventDefault();
-                $('#createAccountForm').html('<div class="loader"></div>');
-                $.ajax({
-                    url: 'create_users.php',
-                    type: 'POST',
-                    data: $(this).serialize(),
-                    success: function(response) {
-                        if (response === "Data inserted successfully") {
-                            alert("Account created successfully!");
-                            window.location.href = 'admin_page.php?contentpage=gerer_les_comptes/manage_users.php';
-                        } else {
-                            alert("Error: " + response);
-                            $('#createAccountForm').load('create_users.php #createAccountForm', function() {
-                                toggleFields();
-                            });
-                        }
-                    },
-                    error: function(xhr, status, error) {
-                        alert("An error occurred while submitting the form: " + error);
-                        $('#createAccountForm').load('create_users.php #createAccountForm', function() {
-                            toggleFields();
-                        });
-                    }
-                });
-            });
-
-            $('#panneForm').on('submit', function(e) {
-                e.preventDefault();
-                $('#panneForm').html('<div class="loader"></div>');
-                $.ajax({
-                    url: 'gerer_pn/signaler_des_panne.php',
-                    type: 'POST',
-                    data: $(this).serialize(),
-                    success: function(response) {
-                        if (response === "Data inserted successfully") {
-                            alert("Account created successfully!");
-                            window.location.href = 'admin_page.php?contentpage=gerer_pn/signaler_des_panne.php';
-                        } else {
-                            alert("Error: " + response);
-                            $('#createAccountForm').load('gerer_pn/signaler_des_panne.php #panneForm', function() {
-                                toggleFields();
-                            });
-                        }
-                    },
-                    error: function(xhr, status, error) {
-                        alert("An error occurred while submitting the form: " + error);
-                        $('#panneForm').load('gerer_pn/signaler_des_panne.php #panneForm', function() {
-                            toggleFields();
-                        });
-                    }
-                });
-            });
         });
 
         $(window).on("popstate", function(event) {

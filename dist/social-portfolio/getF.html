@@ -1,181 +1,687 @@
-<div class="bg-white shadow-xl rounded-2xl p-8 w-full max-w-xl">
-    <h2 class="text-2xl font-bold mb-4 text-center text-gray-800">تحقق من عدد المتابعين</h2>
-    <input type="text" id="urlInput" placeholder="أدخل رابط TikTok أو Instagram أو YouTube"
-           class="w-full p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-    <button onclick="getFollowers()"
-            class="w-full mt-4 bg-blue-600 text-white py-3 rounded-xl hover:bg-blue-700 transition duration-200">
-      جلب عدد المتابعين
-    </button>
-    <div id="result" class="mt-6 text-center text-lg text-green-600 font-medium">🔍 في انتظار الرابط...</div>
-</div>
 
-<script>
-    // Replace with your actual YouTube API key
-    const YOUTUBE_API_KEY = "AIzaSyAoYCQq3zVkJydrL0lNt1Jfe6imJXLvd04"; // Replace with your key
-    
-    async function getFollowers() {
-      const url = document.getElementById("urlInput").value.trim();
-      const resultDiv = document.getElementById("result");
-      resultDiv.innerText = "⏳ جاري التحميل...";
+    <div class="max-w-2xl mx-auto bg-white rounded-xl shadow-md overflow-hidden p-6">
+        <h1 class="text-2xl font-bold text-center text-gray-800 mb-6">أداة تحليل السوشيال ميديا</h1>
+        
+        <div class="mb-6">
+            <input 
+                type="text" 
+                id="urlInput" 
+                placeholder="أدخل رابط الحساب (YouTube, Instagram, TikTok)" 
+                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                autocomplete="off"
+            >
+        </div>
+        
+        <div id="result" class="space-y-4">
+            <div id="defaultMessage" class="text-center text-gray-500">
+                أدخل رابط الحساب لرؤية التحليل
+            </div>
+            <div id="loading" class="hidden text-center py-4">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                <p class="mt-2 text-gray-600">جاري تحميل البيانات...</p>
+            </div>
+            <div id="output" class="hidden space-y-4"></div>
+            <div id="error" class="hidden text-center text-red-500"></div>
+        </div>
+    </div>
 
-      if (!url) {
-        resultDiv.innerText = "❌ الرجاء إدخال رابط.";
-        return;
-      }
-
-      try {
-        // YouTube handling
-        if (url.includes("youtube.com") || url.includes("youtu.be")) {
-          if (!YOUTUBE_API_KEY || YOUTUBE_API_KEY.includes("AIzaSyAoYCQq3zVkJydrL0lNt1Jfe6imJXLvd04")) {
-            resultDiv.innerText = "❌ يلزم إضافة مفتاح YouTube API صالح.";
-            return;
-          }
-          
-          const channelId = await extractYouTubeChannelId(url);
-          if (!channelId) {
-            resultDiv.innerText = "❌ لم يتم التعرف على القناة. استخدم رابط القناة مباشرة.";
-            return;
-          }
-
-          const apiUrl = `https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${channelId}&key=${YOUTUBE_API_KEY}`;
-          const response = await fetch(apiUrl);
-          
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error?.message || "YouTube API error");
-          }
-          
-          const data = await response.json();
-
-          if (data.items?.length > 0) {
-            const count = data.items[0].statistics.subscriberCount;
-            resultDiv.innerText = `📺 متابعين YouTube: ${Number(count).toLocaleString()}`;
-          } else {
-            resultDiv.innerText = "❌ لم يتم العثور على القناة. تأكد من الرابط.";
-          }
-          return;
-        }
-
-        // Instagram handling
-        if (url.includes("instagram.com")) {
-          // Try with different proxies
-          const proxies = [
-            "https://api.allorigins.win/get?url=",
-            "https://cors-anywhere.herokuapp.com/",
-            "https://thingproxy.freeboard.io/fetch/"
-          ];
-          
-          let lastError = null;
-          
-          for (const proxy of proxies) {
+    <script>
+        // Configuration
+        const YOUTUBE_API_KEY = "AIzaSyAoYCQq3zVkJydrL0lNt1Jfe6imJXLvd04"; // استبدل بمفتاحك
+        const DEBOUNCE_DELAY = 1000; // تأخير 1 ثانية بعد الكتابة
+        
+        // Elements
+        const urlInput = document.getElementById("urlInput");
+        const outputDiv = document.getElementById("output");
+        const loadingDiv = document.getElementById("loading");
+        const errorDiv = document.getElementById("error");
+        const defaultMessage = document.getElementById("defaultMessage");
+        
+        // Event Listeners
+        let debounceTimer;
+        urlInput.addEventListener("input", () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(analyzeAccount, DEBOUNCE_DELAY);
+        });
+        
+        // Main Function
+        async function analyzeAccount() {
+            const url = urlInput.value.trim();
+            
+            // Reset UI
+            outputDiv.classList.add("hidden");
+            errorDiv.classList.add("hidden");
+            defaultMessage.classList.add("hidden");
+            loadingDiv.classList.remove("hidden");
+            outputDiv.innerHTML = "";
+            errorDiv.textContent = "";
+            
+            if (!url) {
+                defaultMessage.classList.remove("hidden");
+                loadingDiv.classList.add("hidden");
+                return;
+            }
+            
             try {
-              const response = await fetch(proxy + encodeURIComponent(url), {
-                headers: {
-                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                // YouTube
+                if (url.includes("youtube.com") || url.includes("youtu.be")) {
+                    await analyzeYouTube(url);
+                } 
+                // Instagram
+                else if (url.includes("instagram.com")) {
+                    await analyzeInstagram(url);
+                } 
+                // TikTok
+                else if (url.includes("tiktok.com")) {
+                    await analyzeTikTok(url);
+                } 
+                else {
+                    throw new Error("الرابط غير مدعوم. استخدم روابط YouTube أو Instagram أو TikTok فقط");
                 }
-              });
-              
-              if (!response.ok) continue;
-              
-              const data = await response.json();
-              const html = data.contents || data;
-              
-              // New Instagram patterns
-              const patterns = [
-                /"edge_followed_by":\{"count":(\d+)\}/,
-                /"followers":\s*(\d+)/,
-                /"userInteractionCount":"([\d,]+)"/,
-                /([\d,]+)\s+Followers/
-              ];
-              
-              for (const pattern of patterns) {
-                const match = html.match(pattern);
-                if (match) {
-                  const count = match[1].replace(/,/g, '');
-                  resultDiv.innerText = `📸 متابعين Instagram: ${Number(count).toLocaleString()}`;
-                  return;
+            } catch (error) {
+                showError(error.message || "حدث خطأ أثناء جلب البيانات. جرب لاحقاً.");
+            } finally {
+                loadingDiv.classList.add("hidden");
+            }
+        }
+        
+        // YouTube Analysis
+        async function analyzeYouTube(url) {
+            try {
+                const channelId = await extractYouTubeChannelId(url);
+                if (!channelId) throw new Error("تعذر العثور على قناة YouTube");
+                
+                const [stats, info] = await Promise.all([
+                    getYouTubeStats(channelId),
+                    getYouTubeChannelInfo(channelId)
+                ]);
+                
+                renderResults({
+                    platform: "YouTube",
+                    icon: "fab fa-youtube text-red-600",
+                    username: info.title,
+                    stats: [
+                        { label: "👥 المشتركين", value: stats.subscribers },
+                        { label: "👀 المشاهدات", value: stats.views },
+                        { label: "📹 الفيديوهات", value: stats.videos }
+                    ],
+                    bio: info.description
+                });
+            } catch (error) {
+                throw error;
+            }
+        }
+        
+        // Instagram Analysis (Improved)
+        async function analyzeInstagram(url) {
+            const username = extractInstagramUsername(url);
+            if (!username) throw new Error("رابط إنستغرام غير صالح");
+            
+            try {
+                // محاولة استخدام Instagram API بدلاً من السكرابينغ
+                const response = await fetch(`https://www.instagram.com/${username}/?__a=1&__d=dis`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const user = data.graphql?.user;
+                    
+                    if (user) {
+                        renderResults({
+                            platform: "Instagram",
+                            icon: "fab fa-instagram text-pink-600",
+                            username: user.username,
+                            stats: [
+                                { label: "👥 المتابعون", value: user.edge_followed_by?.count },
+                                { label: "👤 يتابع", value: user.edge_follow?.count },
+                                { label: "📌 المنشورات", value: user.edge_owner_to_timeline_media?.count }
+                            ],
+                            bio: user.biography,
+                            links: user.external_url ? [user.external_url] : []
+                        });
+                        return;
+                    }
                 }
-              }
-            } catch (e) {
-              lastError = e;
-              continue;
+                
+                // Fallback to scraping if API fails
+                await scrapeInstagram(username);
+            } catch (error) {
+                console.error("Instagram API Error:", error);
+                await scrapeInstagram(username);
             }
-          }
-          
-          throw new Error(lastError || "Instagram: لم يتم العثور على عدد المتابعين");
         }
+        
+        // Instagram Analysis (Improved Fallback Scraping - Still Unreliable)
+        async function analyzeInstagram(url) {
+            const username = extractInstagramUsername(url);
+            if (!username) throw new Error("رابط إنستغرام غير صالح");
 
-        // TikTok handling
-        if (url.includes("tiktok.com")) {
-          const proxy = "https://api.allorigins.win/get?url=";
-          const response = await fetch(proxy + encodeURIComponent(url));
-          
-          if (!response.ok) {
-            throw new Error("TikTok: فشل في جلب البيانات");
-          }
-          
-          const data = await response.json();
-          const patterns = [
-            /"followerCount":(\d+)/,
-            /"followers":([0-9]+)/,
-            /"followers":\s*"([\d,]+)"/
-          ];
-          
-          for (const pattern of patterns) {
-            const match = data.contents.match(pattern);
-            if (match) {
-              const count = match[1].replace(/,/g, '');
-              resultDiv.innerText = `🎵 متابعين TikTok: ${Number(count).toLocaleString()}`;
-              return;
+            // Removed the unreliable ?__a=1 attempt. Go straight to scraping.
+            console.log("Attempting Instagram scraping for:", username);
+            try {
+                await scrapeInstagram(username);
+            } catch(error) {
+                // Catch the specific error from scrapeInstagram and re-throw it
+                // Or show it directly using showError
+                console.error("Instagram scraping fallback failed:", error);
+                showError(error.message || "❌ تعذر جلب بيانات إنستغرام. قد يتطلب الأمر تسجيل الدخول أو تم حظر الطلب.");
+                // Need to ensure loading indicator is hidden if showError doesn't do it
+                // The 'finally' block in analyzeAccount should handle this, but double-check.
             }
-          }
-          
-          throw new Error("TikTok: لم يتم العثور على عدد المتابعين");
         }
 
-        resultDiv.innerText = "❌ الرابط غير مدعوم. استخدم روابط YouTube أو Instagram أو TikTok فقط.";
-      } catch (error) {
-        console.error("Error:", error);
-        resultDiv.innerText = `❌ حدث خطأ: ${error.message || "جرب رابطًا آخر أو حاول لاحقًا"}`;
-      }
-    }
+        // Instagram Scraping Fallback (Updated with more proxies/patterns - Still Unreliable)
+        async function scrapeInstagram(username) {
+            const proxies = [
+                "https://api.allorigins.win/get?url=", // JSON wrapper proxy
+                "https://corsproxy.io/?",             // Simple CORS proxy
+                // Add more proxies if you know reliable ones, but many public ones get blocked
+                // "https://cors-anywhere.herokuapp.com/", // Often needs activation
+                // "https://thingproxy.freeboard.io/fetch/" // Hit or miss
+            ];
+            const targetUrl = `https://www.instagram.com/${username}/`;
+            let lastError = null;
+            let html = null;
 
-    async function extractYouTubeChannelId(url) {
-      try {
-        // Handle channel URLs
-        if (url.includes("/channel/")) {
-          return url.split("/channel/")[1].split(/[/?#&]/)[0];
+            for (const proxy of proxies) {
+                try {
+                    console.log(`Trying Instagram URL: ${targetUrl} via proxy: ${proxy.split('?')[0]}...`);
+                    const response = await fetch(proxy + encodeURIComponent(targetUrl), {
+                        headers: { // Add more browser-like headers
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                            'Accept-Language': 'en-US,en;q=0.5'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        console.warn(`Proxy ${proxy.split('?')[0]} failed for Instagram with status: ${response.status}`);
+                        lastError = new Error(`Proxy failed with status ${response.status}`);
+                        continue; // Try next proxy
+                    }
+
+                    // Handle potential JSON wrapper (like allorigins)
+                    const contentType = response.headers.get("content-type");
+                    if (contentType && contentType.includes("application/json")) {
+                        try {
+                            const data = await response.json();
+                            html = data.contents || JSON.stringify(data); // Use 'contents' or stringify
+                        } catch (jsonError) {
+                            console.warn(`Failed to parse JSON from ${proxy.split('?')[0]} for Instagram:`, jsonError);
+                            lastError = jsonError;
+                            continue; // Try next proxy
+                        }
+                    } else {
+                        html = await response.text();
+                    }
+
+                    if (!html) {
+                        console.warn(`Empty content received from ${proxy.split('?')[0]} for Instagram`);
+                        lastError = new Error("Empty content received");
+                        continue;
+                    }
+
+                    // --- Try extracting data ---
+                    // Instagram changes structure frequently. These patterns might be outdated.
+                    // Inspect the source of a public Instagram profile manually for current patterns.
+                    const patterns = {
+                        // 1. Try patterns for JSON embedded in HTML (often change)
+                        followersJson: /"edge_followed_by":\s*\{"count":\s*(\d+)\}/,
+                        followingJson: /"edge_follow":\s*\{"count":\s*(\d+)\}/,
+                        postsJson: /"edge_owner_to_timeline_media":\s*\{"count":\s*(\d+)/, // Corrected closing } was missing
+                        bioJson: /"biography":\s*"([^"]+)"/,
+                        linkJson: /"external_url":\s*"([^"]+)"/,
+                        // 2. Try patterns for meta tags (might be less precise or use abbreviations)
+                        followersMeta: /<meta\s+property="og:description"\s+content="([\d,.]+[kKmM]?)\s+Followers/i,
+                        followingMeta: /<meta\s+property="og:description"\s+content=".*?,\s+([\d,]+)\s+Following/i,
+                        postsMeta: /<meta\s+property="og:description"\s+content=".*?,\s+([\d,]+)\s+Posts/i,
+                        // 3. Alternative meta description pattern
+                        followersAltMeta: /<meta\s+name="description"\s+content="([\d,.]+[kKmM]?)\s+Followers/i
+                    };
+
+                    const data = {
+                        followers: null,
+                        following: null,
+                        posts: null,
+                        bio: null,
+                        link: null
+                    };
+
+                    // Helper function to parse potentially abbreviated counts (e.g., 10.5k, 2M)
+                    const parseCount = (str) => {
+                        if (!str) return null;
+                        str = str.toLowerCase().replace(/,/g, '');
+                        let multiplier = 1;
+                        if (str.endsWith('k')) {
+                            multiplier = 1000;
+                            str = str.slice(0, -1);
+                        } else if (str.endsWith('m')) {
+                            multiplier = 1000000;
+                            str = str.slice(0, -1);
+                        }
+                        const num = parseFloat(str);
+                        return isNaN(num) ? null : Math.round(num * multiplier);
+                    };
+
+                    // Extract using patterns, prioritizing JSON ones if available
+                    let match;
+
+                    // Followers
+                    match = html.match(patterns.followersJson);
+                    if (match) data.followers = parseInt(match[1], 10);
+                    else {
+                        match = html.match(patterns.followersMeta) || html.match(patterns.followersAltMeta);
+                        if (match) data.followers = parseCount(match[1]);
+                    }
+
+                    // Following
+                    match = html.match(patterns.followingJson);
+                    if (match) data.following = parseInt(match[1], 10);
+                    else {
+                        match = html.match(patterns.followingMeta);
+                        // Meta tag for following usually doesn't abbreviate
+                        if (match) data.following = parseInt(match[1].replace(/,/g, ''), 10);
+                    }
+
+                    // Posts
+                    match = html.match(patterns.postsJson);
+                    if (match) data.posts = parseInt(match[1], 10);
+                    else {
+                        match = html.match(patterns.postsMeta);
+                        // Meta tag for posts usually doesn't abbreviate
+                        if (match) data.posts = parseInt(match[1].replace(/,/g, ''), 10);
+                    }
+
+                    // Bio and Link (Prefer JSON version if found)
+                    match = html.match(patterns.bioJson);
+                    if (match) {
+                        try { data.bio = JSON.parse(`"${match[1]}"`); } // Decode potential escapes
+                        catch { data.bio = match[1]; }
+                    }
+                    match = html.match(patterns.linkJson);
+                    if (match) data.link = match[1];
+
+                    console.log("Scraped Instagram Data:", data); // Log what was found
+
+                    // Check if we got at least the follower count
+                    if (data.followers !== null && !isNaN(data.followers)) {
+                        renderResults({
+                            platform: "Instagram",
+                            icon: "fab fa-instagram text-pink-600",
+                            username: username,
+                            stats: [
+                                // Only include stats if they were successfully parsed as numbers
+                                ...(data.followers !== null && !isNaN(data.followers) ? [{ label: "👥 المتابعون", value: data.followers }] : []),
+                                ...(data.following !== null && !isNaN(data.following) ? [{ label: "👤 يتابع", value: data.following }] : []),
+                                ...(data.posts !== null && !isNaN(data.posts) ? [{ label: "📌 المنشورات", value: data.posts }] : [])
+                            ],
+                            bio: data.bio, // Render even if null
+                            links: data.link ? [data.link] : [] // Ensure links is array
+                        });
+                        return; // Success! Exit the function.
+                    } else {
+                        console.warn("Could not extract follower count from HTML via proxy " + proxy.split('?')[0]);
+                        lastError = new Error("Could not extract follower count from HTML");
+                        // Continue to try the next proxy
+                    }
+
+                } catch (error) {
+                    console.error(`Error during Instagram fetch/parse with proxy ${proxy.split('?')[0]}:`, error);
+                    lastError = error;
+                    // Continue to the next proxy
+                }
+            } // End proxy loop
+
+            // If the loop finishes without returning, it means all proxies/patterns failed
+            console.error("All Instagram scraping attempts failed.");
+            throw lastError || new Error("❌ تعذر جلب بيانات إنستغرام بعد تجربة كل الطرق. قد يتطلب الأمر تسجيل الدخول أو تم حظر الطلب.");
+        }
+
+        // TikTok Analysis (Improved and Corrected)
+        async function analyzeTikTok(url) {
+            const username = extractTikTokUsername(url);
+            if (!username) throw new Error("رابط تيك توك غير صالح");
+
+            try {
+                // Try multiple API endpoints and proxies
+                const endpoints = [
+                    `https://www.tiktok.com/@${username}`,
+                    `https://tiktok.com/@${username}`
+                ];
+
+                // Note: Some proxies might be unreliable or blocked over time.
+                const proxies = [
+                    "https://api.allorigins.win/get?url=", // Often reliable
+                    "https://corsproxy.io/?",             // Used in your Instagram part
+                    // "https://cors-anywhere.herokuapp.com/", // Often requires demo activation
+                    // "https://thingproxy.freeboard.io/fetch/" // Can be hit-or-miss
+                ];
+
+                let followers = null;
+                let following = null;
+                let likes = null;
+                let bio = null;
+                let links = [];
+                let profileDataFound = false; // Flag to break loops once data is found
+
+                for (const endpoint of endpoints) {
+                    if (profileDataFound) break; // Stop if we found data in a previous endpoint attempt
+
+                    for (const proxy of proxies) {
+                        if (profileDataFound) break; // Stop if we found data in a previous proxy attempt
+
+                        try {
+                            console.log(`Trying TikTok endpoint: ${endpoint} via proxy: ${proxy.split('?')[0]}...`); // Log attempts
+                            const response = await fetch(proxy + encodeURIComponent(endpoint), {
+                                headers: {
+                                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                                    'Accept-Language': 'en-US,en;q=0.5',
+                                    'X-Requested-With': 'XMLHttpRequest' // Some proxies might need this
+                                },
+                                redirect: 'follow' // Follow redirects if any
+                            });
+
+                            if (!response.ok) {
+                                console.warn(`Proxy ${proxy.split('?')[0]} failed for ${endpoint} with status: ${response.status}`);
+                                continue; // Try next proxy if this one failed
+                            }
+
+                            // Determine if response is JSON (like allorigins) or direct HTML
+                            let html = '';
+                            const contentType = response.headers.get("content-type");
+                            if (contentType && contentType.includes("application/json")) {
+                                try {
+                                    const data = await response.json();
+                                    html = data.contents || JSON.stringify(data); // Use 'contents' for allorigins, otherwise stringify
+                                } catch (jsonError) {
+                                    console.warn(`Failed to parse JSON from ${proxy.split('?')[0]} for ${endpoint}:`, jsonError);
+                                    continue; // Try next proxy
+                                }
+                            } else {
+                                html = await response.text();
+                            }
+
+
+                            if (!html) {
+                                console.warn(`Empty content received from ${proxy.split('?')[0]} for ${endpoint}`);
+                                continue; // Skip if content is empty
+                            }
+
+                            // --- Regex Extraction ---
+                            const patterns = {
+                                followers: [ // Array of patterns to try for followers
+                                    /"followerCount":(\d+)/,
+                                    /"followers":\s*(\d+)/, // Simpler follower count
+                                    /"followers":\s*"([\d,]+)"/, // Follower count as string with commas
+                                    /"userInteractionCount":"([\d,]+)"/ // Sometimes used in meta tags for followers/fans
+                                ],
+                                following: [ /"followingCount":(\d+)/ ],
+                                likes: [ /"heartCount":(\d+)/ ],
+                                bio: [ /"signature":"([^"]+)"/ ]
+                            };
+
+                            // --- CORRECTED Regex Assignment ---
+                            for (const [key, patternsToTry] of Object.entries(patterns)) {
+                                for (const pattern of patternsToTry) {
+                                    const match = html.match(pattern);
+                                    if (match && match[1]) {
+                                        const value = match[1].replace(/\\u002F/g, '/'); // Clean potential unicode forward slash
+
+                                        if (key === 'followers' && followers === null) { // Only assign if not already found
+                                            followers = parseInt(value.replace(/,/g, ''), 10);
+                                            console.log(`Regex found followers: ${followers}`);
+                                        } else if (key === 'following' && following === null) {
+                                            following = parseInt(value.replace(/,/g, ''), 10);
+                                            console.log(`Regex found following: ${following}`);
+                                        } else if (key === 'likes' && likes === null) {
+                                            likes = parseInt(value.replace(/,/g, ''), 10);
+                                            console.log(`Regex found likes: ${likes}`);
+                                        } else if (key === 'bio' && bio === null) {
+                                            // Decode potential unicode escape sequences in bio
+                                            try {
+                                                bio = JSON.parse(`"${value}"`); // Clever way to decode JSON string escapes
+                                            } catch {
+                                                bio = value; // Fallback if decoding fails
+                                            }
+                                            links = extractLinksFromBio(bio);
+                                            console.log(`Regex found bio: ${bio.substring(0, 50)}...`);
+                                        }
+                                        // No need to break inner loop, let it check all patterns for a key if needed
+                                    }
+                                }
+                            }
+
+                            // --- JSON Data Extraction (Fallback/Enhancement) ---
+                            // Try to find JSON data embedded in the page (more reliable if structure is known)
+                            const jsonMatch = html.match(/<script id="SIGI_STATE" type="application\/json">(.*?)<\/script>/) || html.match(/<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__" type="application\/json">(.*?)<\/script>/);
+                            if (jsonMatch && jsonMatch[1]) {
+                                try {
+                                    const jsonData = JSON.parse(jsonMatch[1]);
+                                    // Navigate through potential JSON structures (these change often!)
+                                    const userData = jsonData?.['UserModule']?.['users']?.[username] || jsonData?.['ItemModule']?.[Object.keys(jsonData?.['ItemModule'] || {})[0]]?.authorStats || jsonData?.__DEFAULT_SCOPE__?.['webapp.user-detail']?.userInfo || null;
+                                    const statsData = userData?.stats || jsonData?.['UserModule']?.['stats']?.[username] || jsonData?.__DEFAULT_SCOPE__?.['webapp.user-detail']?.userInfo?.stats || null;
+
+                                    if (statsData) {
+                                        console.log("Found stats data in JSON:", statsData);
+                                        // Use JSON data preferably, or if regex failed (null)
+                                        followers = statsData.followerCount ?? followers;
+                                        following = statsData.followingCount ?? following;
+                                        likes = statsData.heartCount ?? statsData.diggCount ?? likes; // diggCount is another name for likes
+                                    }
+                                    if (userData?.user) { // Check nested user object for signature
+                                        console.log("Found user data in JSON:", userData.user);
+                                        bio = userData.user.signature ?? bio;
+                                        links = extractLinksFromBio(bio); // Re-extract if bio updated
+                                    } else if (userData?.signature) { // Check directly on userData
+                                        console.log("Found user data in JSON:", userData);
+                                        bio = userData.signature ?? bio;
+                                        links = extractLinksFromBio(bio); // Re-extract if bio updated
+                                    }
+
+                                } catch (jsonError) {
+                                    console.error("Error parsing TikTok JSON:", jsonError);
+                                    // Don't crash, continue with potentially regex-found data
+                                }
+                            }
+
+                            // If we successfully got follower count, we can stop trying proxies/endpoints
+                            if (followers !== null && !isNaN(followers)) {
+                                console.log("Successfully retrieved TikTok followers. Stopping search.");
+                                profileDataFound = true;
+                                break; // Exit the proxy loop
+                            } else {
+                                console.warn(`Followers still null after trying endpoint ${endpoint} with proxy ${proxy.split('?')[0]}`);
+                            }
+
+                        } catch (e) {
+                            console.error(`Error processing TikTok URL ${endpoint} with proxy ${proxy.split('?')[0]}:`, e);
+                            continue; // Try next proxy
+                        }
+                    } // End proxy loop
+                } // End endpoint loop
+
+                // Final Check and Rendering
+                if (followers !== null && !isNaN(followers)) { // Check if followers is a valid number
+                    const stats = [];
+                    // Only add stats if they are valid numbers (not null/NaN)
+                    if (followers !== null && !isNaN(followers)) stats.push({ label: "👥 المتابعون", value: followers });
+                    if (following !== null && !isNaN(following)) stats.push({ label: "👤 يتابع", value: following });
+                    if (likes !== null && !isNaN(likes)) stats.push({ label: "❤️ الإعجابات", value: likes });
+
+                    renderResults({
+                        platform: "TikTok",
+                        icon: "fab fa-tiktok text-black",
+                        username: username,
+                        stats: stats,
+                        bio: bio, // Render bio even if null/empty
+                        links: links || [] // Ensure links is always an array
+                    });
+                } else {
+                    // Throw error only if followers is still null or NaN after all attempts
+                    throw new Error("تعذر جلب بيانات المتابعين لـ TikTok بعد تجربة كل الطرق");
+                }
+
+         } catch (error) {
+            console.error("Final TikTok Error:", error);
+             // Show a more specific error if possible
+             showError(error.message || "تعذر جلب بيانات تيك توك. قد يكون الحساب خاصًا أو حدث تغيير في الموقع.");
+         }
+        }
+
+        // Helper Functions
+        function renderResults(data) {
+            let html = `
+                <div class="flex items-center mb-4 p-4 bg-gray-50 rounded-lg">
+                    <i class="${data.icon} text-2xl ml-3"></i>
+                    <div>
+                        <h2 class="font-bold text-lg">${data.platform}</h2>
+                        <p class="text-gray-600">@${data.username}</p>
+                    </div>
+                </div>`;
+            
+            // Add stats
+            html += `<div class="grid grid-cols-2 gap-4 mb-4">`;
+            data.stats.forEach(stat => {
+                if (stat.value) {
+                    html += `
+                        <div class="bg-gray-50 p-3 rounded-lg">
+                            <p class="text-gray-500">${stat.label}</p>
+                            <p class="font-bold">${stat.value.toLocaleString()}</p>
+                        </div>`;
+                }
+            });
+            html += `</div>`;
+            
+            // Add bio
+            if (data.bio) {
+                html += `
+                    <div class="mb-4 p-4 bg-gray-50 rounded-lg">
+                        <p class="text-gray-500 mb-2">📝 السيرة الذاتية</p>
+                        <p class="whitespace-pre-line">${data.bio}</p>
+                    </div>`;
+            }
+            
+            // Add links
+            if (data.links?.length > 0) {
+                html += `
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <p class="text-gray-500 mb-2">🔗 الروابط</p>
+                        <ul class="space-y-2">`;
+                
+                data.links.forEach(link => {
+                    html += `
+                        <li>
+                            <a href="${link}" target="_blank" class="text-blue-500 hover:underline break-all">
+                                ${link}
+                            </a>
+                        </li>`;
+                });
+                
+                html += `</ul></div>`;
+            }
+            
+            outputDiv.innerHTML = html;
+            outputDiv.classList.remove("hidden");
         }
         
-        // Handle @handle URLs (new style)
-        if (url.includes("youtube.com/@")) {
-          const handle = url.split("youtube.com/@")[1].split(/[/?#&]/)[0];
-          // Need to convert handle to channel ID
-          try {
-            const response = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${handle}&type=channel&key=${YOUTUBE_API_KEY}`);
+        function showError(message) {
+            errorDiv.textContent = `❌ ${message}`;
+            errorDiv.classList.remove("hidden");
+        }
+        
+        function extractInstagramUsername(url) {
+            const match = url.match(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/([^\/?]+)/);
+            return match ? match[1].replace("@", "") : null;
+        }
+        
+        function extractTikTokUsername(url) {
+            const match = url.match(/(?:https?:\/\/)?(?:www\.)?tiktok\.com\/@([^\/?]+)/);
+            return match ? match[1] : null;
+        }
+        
+        function extractLinksFromBio(bio) {
+            if (!bio) return [];
+            const linkRegex = /https?:\/\/[^\s]+/g;
+            return bio.match(linkRegex) || [];
+        }
+        
+        function extractTikTokJSON(html) {
+            const scriptRegex = /<script id="__NEXT_DATA__" type="application\/json">(.*?)<\/script>/;
+            const match = html.match(scriptRegex);
+            return match ? JSON.parse(match[1]) : null;
+        }
+        
+        function extractTikTokMetaData(html) {
+            const metaDescription = html.match(/<meta name="description" content="([^"]+)"/);
+            if (!metaDescription) return null;
+            
+            const description = metaDescription[1];
+            const followersMatch = description.match(/([\d,]+)\s+متابع/);
+            const likesMatch = description.match(/([\d,]+)\s+إعجاب/);
+            
+            return {
+                followers: followersMatch ? parseInt(followersMatch[1].replace(/,/g, '')) : null,
+                likes: likesMatch ? parseInt(likesMatch[1].replace(/,/g, '')) : null,
+                bio: description.split("·")[0].trim()
+            };
+        }
+        
+        async function extractYouTubeChannelId(url) {
+            try {
+                // Handle channel URLs
+                if (url.includes("/channel/")) {
+                    return url.split("/channel/")[1].split(/[/?#&]/)[0];
+                }
+                
+                // Handle @username URLs
+                if (url.includes("youtube.com/@")) {
+                    const handle = url.split("youtube.com/@")[1].split(/[/?#&]/)[0];
+                    const response = await fetch(
+                        `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${handle}&type=channel&key=${YOUTUBE_API_KEY}`
+                    );
+                    const data = await response.json();
+                    return data.items?.[0]?.id?.channelId || null;
+                }
+                
+                // Handle video URLs
+                if (url.includes("/watch")) {
+                    const videoId = url.split("v=")[1].split(/[&?#]/)[0];
+                    const response = await fetch(
+                        `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${YOUTUBE_API_KEY}`
+                    );
+                    const data = await response.json();
+                    return data.items?.[0]?.snippet?.channelId || null;
+                }
+                
+                return null;
+            } catch (error) {
+                console.error("Error extracting channel ID:", error);
+                return null;
+            }
+        }
+        
+        async function getYouTubeStats(channelId) {
+            const response = await fetch(
+                `https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${channelId}&key=${YOUTUBE_API_KEY}`
+            );
             const data = await response.json();
-            return data.items?.[0]?.id?.channelId || null;
-          } catch {
-            return null;
-          }
+            
+            return {
+                subscribers: parseInt(data.items[0].statistics.subscriberCount),
+                views: parseInt(data.items[0].statistics.viewCount),
+                videos: parseInt(data.items[0].statistics.videoCount)
+            };
         }
         
-        // Handle video URLs
-        if (url.includes("/watch")) {
-          const videoId = url.split("v=")[1].split(/[&?#]/)[0];
-          try {
-            const response = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${YOUTUBE_API_KEY}`);
+        async function getYouTubeChannelInfo(channelId) {
+            const response = await fetch(
+                `https://www.googleapis.com/youtube/v3/channels?part=snippet&id=${channelId}&key=${YOUTUBE_API_KEY}`
+            );
             const data = await response.json();
-            return data.items?.[0]?.snippet?.channelId || null;
-          } catch {
-            return null;
-          }
+            
+            return {
+                title: data.items[0].snippet.title,
+                description: data.items[0].snippet.description
+            };
         }
-        
-        return null;
-      } catch (e) {
-        console.error("Channel ID extraction error:", e);
-        return null;
-      }
-    }
-</script>
+    </script>
